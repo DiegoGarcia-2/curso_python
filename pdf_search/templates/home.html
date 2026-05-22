@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+  <div>
+    <h1 class="page-title">
+      <i class="bi bi-house-fill me-2" style="color:var(--accent)"></i>Dashboard
+    </h1>
+    <p class="page-sub">Resumen en tiempo real de documentos e índice de palabras.</p>
+  </div>
+  <button class="btn-outline" id="btnRefresh" onclick="refreshStats()">
+    <i class="bi bi-arrow-clockwise me-1"></i>Actualizar
+  </button>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-sm-4">
+    <div class="stat-card">
+      <div class="stat-val" id="s-docs">{{ stats.total_docs }}</div>
+      <div class="stat-lbl"><i class="bi bi-file-earmark-pdf me-1"></i>Documentos indexados</div>
+    </div>
+  </div>
+  <div class="col-sm-4">
+    <div class="stat-card">
+      <div class="stat-val" id="s-words">{{ stats.total_words | int }}</div>
+      <div class="stat-lbl"><i class="bi bi-alphabet me-1"></i>Palabras indexadas</div>
+    </div>
+  </div>
+  <div class="col-sm-4">
+    <div class="stat-card">
+      <div class="stat-val" id="s-years">{{ stats.docs_by_year | length }}</div>
+      <div class="stat-lbl"><i class="bi bi-calendar3 me-1"></i>Años cubiertos</div>
+    </div>
+  </div>
+</div>
+
+<div class="gcard">
+  <div class="gcard-title">
+    <i class="bi bi-bar-chart-fill" style="color:var(--accent)"></i>
+    Documentos por año
+  </div>
+
+  <div id="year-chart">
+    {% if stats.docs_by_year %}
+      {% set max_c = stats.docs_by_year.values() | list | max %}
+      {% for year, count in stats.docs_by_year | dictsort(reverse=True) %}
+        <div class="yr-row">
+          <span class="yr-lbl">{{ year }}</span>
+          <div class="yr-wrap">
+            <div class="yr-bar" style="width: {{ (count / max_c * 100) | round | int }}%"></div>
+          </div>
+          <span class="yr-cnt">{{ count }} doc{{ 's' if count != 1 else '' }}</span>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="text-center py-4" style="color:var(--muted); font-size:.85rem">
+        <i class="bi bi-inbox d-block mb-2" style="font-size:2rem"></i>
+        Sin documentos indexados aún.
+        Ve a <a href="{{ url_for('scrapper') }}" style="color:var(--accent)">Scrapper</a> para comenzar.
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<p class="mt-3" style="font-size:.72rem; color:var(--muted)">
+  <i class="bi bi-circle-fill me-1" style="color:var(--accent); font-size:.45rem; vertical-align:middle"></i>
+  Las estadísticas se refrescan automáticamente cada 8 segundos mientras hay un scraping activo.
+</p>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  function fmt(n) { return Number(n).toLocaleString('es-MX'); }
+
+  function renderYears(obj) {
+    const entries = Object.entries(obj).sort((a,b) => b[0]-a[0]);
+    if (!entries.length) return;
+    const max = Math.max(...entries.map(e=>e[1]));
+    document.getElementById('year-chart').innerHTML = entries.map(([y,c]) => `
+      <div class="yr-row">
+        <span class="yr-lbl">${y}</span>
+        <div class="yr-wrap"><div class="yr-bar" style="width:${Math.round(c/max*100)}%"></div></div>
+        <span class="yr-cnt">${c} doc${c!==1?'s':''}</span>
+      </div>`).join('');
+  }
+
+  async function refreshStats() {
+    const btn = document.getElementById('btnRefresh');
+    btn.innerHTML = '<span class="spin"></span>Actualizando…';
+    try {
+      const r = await fetch('/api/stats');
+      const d = await r.json();
+      document.getElementById('s-docs').textContent  = fmt(d.total_docs);
+      document.getElementById('s-words').textContent = fmt(d.total_words);
+      document.getElementById('s-years').textContent = Object.keys(d.docs_by_year).length;
+      renderYears(d.docs_by_year);
+    } catch(e) { console.warn('refresh failed', e); }
+    btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Actualizar';
+  }
+
+  setInterval(refreshStats, 8000);
+</script>
+{% endblock %}
