@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Búsqueda{% endblock %}
+
+{% block content %}
+
+<h1 class="page-title">
+  <i class="bi bi-search me-2" style="color:var(--accent)"></i>Búsqueda
+</h1>
+<p class="page-sub">Busca fragmentos de texto en los documentos indexados usando similitud Levenshtein.</p>
+
+<div class="gcard mb-4">
+  <form method="GET" action="{{ url_for('search') }}" id="searchForm">
+
+    <div class="d-flex gap-2 mb-3">
+      <input class="inp" type="search" name="q"
+             id="queryInput"
+             placeholder="Escribe el texto a buscar…"
+             value="{{ query }}"
+             autocomplete="off"
+             style="border-radius:var(--r) 0 0 var(--r)"/>
+      <button class="btn-accent" type="submit"
+              style="border-radius:0 var(--r) var(--r) 0; white-space:nowrap">
+        <i class="bi bi-search me-1"></i>Search
+      </button>
+    </div>
+
+    <div>
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        <label style="font-size:.78rem; color:var(--muted)">
+          <i class="bi bi-sliders me-1"></i>Similitud mínima (Levenshtein)
+        </label>
+        <span id="thresholdLabel"
+              style="font-size:.82rem; font-weight:700; color:var(--accent)">
+          {{ "%.0f" | format(threshold * 100) }}%
+        </span>
+      </div>
+
+      <input type="range" name="threshold" id="thresholdSlider"
+             min="0" max="1" step="0.01"
+             value="{{ threshold }}"
+             style="width:100%"
+             oninput="document.getElementById('thresholdLabel').textContent =
+                      Math.round(this.value*100)+'%'"/>
+
+      <div class="d-flex justify-content-between"
+           style="font-size:.68rem; color:var(--muted); margin-top:.2rem">
+        <span>0 — sin parecido</span>
+        <span>1 — idéntico</span>
+      </div>
+    </div>
+
+  </form>
+</div>
+
+{% if query %}
+  <div class="d-flex align-items-center gap-3 mb-3">
+    <span style="font-size:.82rem; color:var(--muted)">
+      Texto buscado:
+    </span>
+    <span style="font-family:var(--mono); font-size:.82rem;
+                 background:rgba(34,211,165,.1); color:var(--accent);
+                 padding:.2rem .6rem; border-radius:5px">
+      "{{ query }}"
+    </span>
+    <span style="font-size:.78rem; color:var(--muted)">
+      — umbral {{ "%.0f"|format(threshold*100) }}% —
+    </span>
+    <span class="badge b-blue">{{ results | length }} resultado{{ 's' if results|length != 1 else '' }}</span>
+  </div>
+
+  {% if results %}
+    {% for r in results %}
+    <div class="result-card">
+
+      <div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-1">
+        <div>
+          <div style="font-weight:700; font-size:.9rem; margin-bottom:.2rem">
+            <i class="bi bi-file-earmark-pdf-fill me-1" style="color:var(--red)"></i>
+            {{ r.filename }}
+          </div>
+          {% if r.original_url %}
+            <div style="font-size:.75rem">
+              <i class="bi bi-link-45deg me-1" style="color:var(--blue)"></i>
+              <a href="{{ r.original_url }}" target="_blank" rel="noopener"
+                 style="color:var(--blue); text-decoration:none; word-break:break-all">
+                {{ r.original_url }}
+              </a>
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="text-end flex-shrink-0">
+          <div style="font-family:var(--mono); font-weight:700; font-size:1.3rem;
+                      color:{% if r.similarity >= 80 %}var(--accent){% elif r.similarity >= 50 %}var(--yellow){% else %}var(--muted){% endif %}">
+            {{ r.similarity }}%
+          </div>
+          <div style="font-size:.65rem; color:var(--muted)">similitud</div>
+        </div>
+      </div>
+
+      <div class="sim-bar">
+        <div class="sim-fill" style="width:{{ r.similarity }}%"></div>
+      </div>
+
+      {% if r.block %}
+        <div class="text-block">
+          <i class="bi bi-quote me-1" style="opacity:.5"></i>{{ r.block }}
+        </div>
+      {% endif %}
+
+    </div>
+    {% endfor %}
+
+  {% else %}
+    <div class="gcard text-center py-5">
+      <i class="bi bi-search d-block mb-2" style="font-size:2.5rem; color:var(--muted)"></i>
+      <p style="color:var(--muted); font-size:.9rem">
+        No se encontraron resultados con una similitud ≥ {{ "%.0f"|format(threshold*100) }}%
+      </p>
+      <p style="font-size:.78rem; color:var(--muted)">
+        Intenta bajar el umbral o usar un texto más corto.
+      </p>
+    </div>
+  {% endif %}
+
+{% else %}
+  <div class="gcard text-center py-5" style="color:var(--muted)">
+    <i class="bi bi-file-earmark-text d-block mb-2" style="font-size:2.5rem"></i>
+    <p style="font-size:.9rem">Escribe algo en el campo de búsqueda para comenzar.</p>
+  </div>
+{% endif %}
+
+{% endblock %}

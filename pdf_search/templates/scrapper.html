@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}Scrapper{% endblock %}
+
+{% block content %}
+
+<h1 class="page-title">
+  <i class="bi bi-cloud-download-fill me-2" style="color:var(--accent)"></i>Scrapper
+</h1>
+<p class="page-sub">Gestiona y ejecuta los trabajos de scraping para indexar documentos PDF.</p>
+
+{% if not data %}
+  <div class="gcard text-center py-5">
+    <i class="bi bi-link-45deg d-block mb-2" style="font-size:2.5rem; color:var(--muted)"></i>
+    <p style="color:var(--muted); font-size:.9rem; margin-bottom:1rem">No hay URLs configuradas.</p>
+    <a href="{{ url_for('configuration') }}" class="btn-accent" style="text-decoration:none">
+      <i class="bi bi-plus-lg me-1"></i>Agregar URLs
+    </a>
+  </div>
+{% else %}
+
+  {% for item in data %}
+  {% set s = item.source %}
+  {% set running = item.status.running %}
+
+  <div class="url-card" id="card-{{ s.id }}">
+
+    <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
+
+      <div style="flex:1; min-width:0">
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
+          {% if s.scraped %}
+            <span class="badge b-green"><i class="bi bi-check-circle me-1"></i>Scrapeada</span>
+          {% else %}
+            <span class="badge b-yellow" id="badge-{{ s.id }}">
+              <i class="bi bi-clock me-1"></i>No scrapeada
+            </span>
+          {% endif %}
+
+          {% if item.documents %}
+            <span class="badge b-blue" id="cnt-{{ s.id }}">
+              {{ item.documents | length }} archivo{{ 's' if item.documents|length != 1 else '' }}
+            </span>
+          {% else %}
+            <span class="badge b-blue" id="cnt-{{ s.id }}">0 archivos</span>
+          {% endif %}
+        </div>
+
+        <div class="url-addr">
+          <i class="bi bi-link me-1"></i>
+          <a href="{{ s.address }}" target="_blank" rel="noopener"
+             style="color:var(--blue); text-decoration:none">{{ s.address }}</a>
+        </div>
+
+        <div class="progress-txt" id="prog-{{ s.id }}">
+          {% if running %}
+            <span class="spin"></span>{{ item.status.progress }}
+          {% endif %}
+        </div>
+      </div>
+
+      <div>
+        <button class="btn-accent" id="btn-{{ s.id }}"
+                onclick="startScrape({{ s.id }}, this)"
+                {% if running %}disabled{% endif %}>
+          {% if running %}
+            <span class="spin"></span>Scraping…
+          {% else %}
+            <i class="bi bi-play-fill me-1"></i>Scrape
+          {% endif %}
+        </button>
+      </div>
+    </div>
+
+    <div class="file-list" id="files-{{ s.id }}">
+      {% if item.documents %}
+        {% for d in item.documents %}
+          <div class="file-item">
+            <i class="bi bi-file-earmark-pdf-fill"></i>
+            <span>{{ d.filename }}</span>
+            {% if d.year %}
+              <span class="badge b-yellow ms-1">{{ d.year }}</span>
+            {% endif %}
+            {% if d.ocr_used %}
+              <span class="badge b-blue ms-1"><i class="bi bi-eye me-1"></i>OCR</span>
+            {% endif %}
+          </div>
+        {% endfor %}
+      {% else %}
+        <div style="font-size:.75rem; color:var(--muted); padding:.3rem 0">
+          <i class="bi bi-inbox me-1"></i>Sin documentos desde esta fuente.
+        </div>
+      {% endif %}
+    </div>
+
+  </div>
+  {% endfor %}
+
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const _timers = {};
+
+async function startScrape(sid, btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>Scraping…';
+  const prog = document.getElementById(`prog-${sid}`);
+  prog.innerHTML = '<span class="spin"></span>Iniciando…';
+
+  try {
+    const r = await fetch(`/scrapper/start/${sid}`, { method: 'POST' });
+    if (!r.ok) {
+      const e = await r.json();
+      prog.textContent = 'Error: ' + (e.error || 'Desconocido');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-play-fill me-1"></i>Reintentar';
+      return;
+    }
+  } catch(e) {
+    prog.textContent = 'Error de red.';
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-play-fill me-1"></i>Reintentar';
+    return;
+  }
+
+  _timers[sid] = setInterval(() => pollScrape(sid, btn), 2000);
+}
+
+async function pollScrape(sid, btn) {
+  try {
+    const r    = await fetch(`/scrapper/status/${sid}`);
+    const data = await r.json();
+    const prog   = document.getElementById(`prog-${sid}`);
+    const files  = document.getElementById(`files-${sid}`);
+    const cntEl  = document.getElementById(`cnt-${sid}`);
+    const badgeEl= document.getElementById(`badge-${sid}`);
+
+    prog.innerHTML = data.running
+      ? `<span class="spin"></span>${data.progress}`
+      : data.progress;
+
+    if (data.docs && data.docs.length) {
+      cntEl.textContent = `${data.docs.length} archivo${data.docs.length !== 1 ? 's' : ''}`;
+      files.innerHTML = data.docs.map(d => `
+        <div class="file-item">
+          <i class="bi bi-file-earmark-pdf-fill"></i>
+          <span>${d.filename}</span>
+          ${d.year ? `<span class="badge b-yellow ms-1">${d.year}</span>` : ''}
+          ${d.ocr  ? `<span class="badge b-blue ms-1"><i class="bi bi-eye me-1"></i>OCR</span>` : ''}
+        </div>`).join('');
+    }
+
+    if (!data.running) {
+      clearInterval(_timers[sid]);
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Re-scrape';
+
+      if (data.scraped && badgeEl) {
+        badgeEl.className = 'badge b-green';
+        badgeEl.innerHTML = '<i class="bi bi-check-circle me-1"></i>Scrapeada';
+      }
+    }
+  } catch(e) { console.warn('poll error', e); }
+}
+</script>
+{% endblock %}

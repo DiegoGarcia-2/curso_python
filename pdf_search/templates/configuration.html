@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Configuration{% endblock %}
+
+{% block content %}
+
+<h1 class="page-title">
+  <i class="bi bi-gear-fill me-2" style="color:var(--accent)"></i>Configuration
+</h1>
+<p class="page-sub">Agrega y administra las URLs que el scrapper visitará para encontrar PDFs.</p>
+
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="gcard h-100">
+      <div class="gcard-title">
+        <i class="bi bi-plus-circle" style="color:var(--accent)"></i>
+        Agregar URL
+      </div>
+
+      <form method="POST" action="{{ url_for('configuration') }}">
+        <label style="font-size:.78rem; color:var(--muted); margin-bottom:.4rem; display:block">
+          Dirección web a escrapear
+        </label>
+        <div class="d-flex gap-2">
+          <input class="inp" type="url" name="url"
+                 placeholder="https://ejemplo.com/documentos/"
+                 required autocomplete="off"
+                 style="border-radius:var(--r) 0 0 var(--r)"/>
+          <button class="btn-accent" type="submit"
+                  style="border-radius:0 var(--r) var(--r) 0; white-space:nowrap">
+            <i class="bi bi-plus-lg me-1"></i>ADD
+          </button>
+        </div>
+        <p style="font-size:.72rem; color:var(--muted); margin-top:.5rem">
+          <i class="bi bi-info-circle me-1"></i>
+          El scrapper buscará enlaces <code style="color:var(--accent)">.pdf</code> en esa página.
+        </p>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="gcard">
+      <div class="gcard-title">
+        <i class="bi bi-list-ul" style="color:var(--accent)"></i>
+        URLs configuradas
+        <span class="badge b-blue ms-auto">{{ sources | length }}</span>
+      </div>
+
+      {% if sources %}
+        {% for s in sources %}
+        <div class="url-card" style="margin-bottom:.7rem">
+          <div class="d-flex align-items-start justify-content-between gap-2">
+            <div style="flex:1; min-width:0">
+              <div class="d-flex flex-wrap gap-1 mb-1">
+                {% if s.scraped %}
+                  <span class="badge b-green"><i class="bi bi-check-circle me-1"></i>Scrapeada</span>
+                {% else %}
+                  <span class="badge b-yellow"><i class="bi bi-clock me-1"></i>Pendiente</span>
+                {% endif %}
+                <span class="badge b-blue">{{ s.documents.count() }} docs</span>
+              </div>
+              <div class="url-addr">
+                <i class="bi bi-link me-1"></i>
+                <a href="{{ s.address }}" target="_blank" rel="noopener"
+                   style="color:var(--blue); text-decoration:none">{{ s.address }}</a>
+              </div>
+              <div style="font-size:.7rem; color:var(--muted); margin-top:.25rem">
+                Agregada: {{ s.added_at.strftime('%d/%m/%Y %H:%M') }}
+              </div>
+            </div>
+
+            <div class="d-flex gap-2 align-items-center flex-shrink-0">
+              <a href="{{ url_for('scrapper') }}" class="btn-outline"
+                 style="text-decoration:none; font-size:.74rem; padding:.35rem .8rem">
+                <i class="bi bi-play-fill me-1"></i>Scrape
+              </a>
+              <form method="POST"
+                    action="{{ url_for('configuration_delete', sid=s.id) }}"
+                    onsubmit="return confirm('¿Eliminar esta URL y sus documentos?')">
+                <button class="btn-danger" type="submit">
+                  <i class="bi bi-trash3"></i>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="text-center py-4" style="color:var(--muted); font-size:.85rem">
+          <i class="bi bi-inbox d-block mb-2" style="font-size:2rem"></i>
+          No hay URLs registradas. Agrega una arriba.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}
